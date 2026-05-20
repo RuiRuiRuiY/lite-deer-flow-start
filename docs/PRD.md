@@ -27,7 +27,7 @@
 | ---------------------- | ---------------------------------------------------------------------------------------- |
 | **Lead Agent**   | 用 DeepAgents `create_deep_agent()` 替代自研                                           |
 | **Sub-Agents**   | 固定 2 个：research-agent + report-agent，不做动态分工                                   |
-| **Sandbox**      | 仅 LocalShellBackend（文件操作 + shell 执行），无 Docker/K8s |
+| **Sandbox**      | 仅 FilesystemBackend（纯文件操作），无 shell 执行、无 Docker/K8s |
 | **Memory**       | Phase 1: AGENTS.md 手动文件；Phase 3: LLM 自动提取（预留接口）                           |
 | **Skills**       | DeepAgents 原生支持，内置 research + report 两个 skill                                   |
 | **Tools**        | web_search(Tavily)、web_fetch、read_file、write_file、edit_file、bash(Git Bash)          |
@@ -88,9 +88,9 @@
 │      ├── skills: ["./skills/report/"]     │
 │      └── 职责：基于研究结果撰写报告        │
 │                                          │
-│  Local Sandbox (文件系统 + Shell 执行)         │
-│  ├── LocalShellBackend(root_dir, virtual_mode=True) │
-│  └── execute 直接调用 subprocess（Git Bash）    │
+│  Local Sandbox (文件系统)                      │
+│  ├── FilesystemBackend(root_dir, virtual_mode=True) │
+│  └── 文件操作：ls, read_file, write_file, edit_file, glob, grep │
 │                                          │
 │  Memory 系统                             │
 │  ├── Phase 1: AGENTS.md 手动文件          │
@@ -123,7 +123,6 @@
 | 后端 API         | FastAPI + uvicorn                     | 轻量、异步、类型安全                    |
 | 前端             | Streamlit                             | 快速验证，无需前端工程化                |
 | 搜索工具         | Tavily（langchain-tavily `TavilySearch` 新版 API）+ SerpApi | 免费额度 + fallback      |
-| Shell 执行       | Git Bash                              | Windows 环境已安装                      |
 | 配置格式         | YAML (config.yaml)                    | 与 DeerFlow 一致                        |
 | 记忆存储         | JSON 文件 / Markdown                  | 简单、可读、可手动编辑                  |
 | Checkpointer     | AsyncSqliteSaver（langgraph-checkpoint-sqlite） | 轻量、跨会话持久化、支持 HITL |
@@ -401,30 +400,15 @@ async def web_search(query: str, max_results: int = 5) -> str:
 
 ### 4.5 Sandbox / 文件系统
 
-**LocalShellBackend 配置**（Windows 环境）：
+**FilesystemBackend 配置**（Windows 环境）：
 
 ```python
-from deepagents.backends import LocalShellBackend
+from deepagents.backends import FilesystemBackend
 
-backend = LocalShellBackend(
+backend = FilesystemBackend(
     root_dir=f"data/threads/{thread_id}/",  # 每个线程独立目录
-    virtual_mode=True,  # 启用虚拟路径（仅限制文件操作，不限制 shell 命令）
-    timeout=120,  # 命令执行超时 120 秒
-    max_output_bytes=100000,  # 输出截断 100KB
+    virtual_mode=True,  # 限制路径访问，禁止 ../ 和 ~/ 逃逸
 )
-```
-
-> ⚠️ **安全注意**：`virtual_mode=True` 仅限制文件操作的路径访问，**不限制 shell 命令**。`execute` 工具仍可访问系统任意路径。Phase 1 建议开启 `interrupt_on={"execute": True}` 作为主要防护。
-
-> ⚠️ **Windows 编码 Bug**：GitHub Issue #2311 报告 `LocalShellBackend.execute()` 在中文 Windows 上可能因 GBK/UTF-8 编码冲突崩溃。如遇此问题，可设置 `PYTHONIOENCODING=utf-8` 环境变量作为临时缓解。
-
-虚拟路径映射（自动处理）：
-
-```
-/workspace/    →  data/threads/{thread_id}/workspace/
-/uploads/      →  data/threads/{thread_id}/uploads/
-/outputs/      →  data/threads/{thread_id}/outputs/
-/skills/       →  backend/app/skills/
 ```
 
 **文件操作工具**（DeepAgents 原生提供）：
@@ -435,12 +419,6 @@ backend = LocalShellBackend(
 - `edit_file` — 精确字符串替换
 - `glob` — 文件名模式匹配
 - `grep` — 文件内容搜索
-
-**Shell 执行**：
-
-- 通过 Git Bash 执行命令
-- 工具名: `execute`（DeepAgents sandbox backend）
-- 本地模式: 直接调用 `subprocess.run(["bash", "-c", cmd])`
 
 ### 4.6 Skills 系统
 
@@ -676,9 +654,8 @@ server:
   port: 8000
 
 sandbox:
-  type: local_shell  # LocalShellBackend（文件操作 + shell 执行）
-  virtual_mode: true  # 限制文件路径访问（不限制 shell 命令）
-  timeout: 120  # 命令执行超时秒数
+  type: filesystem  # FilesystemBackend（纯文件操作）
+  virtual_mode: true  # 限制路径访问
 
 memory:
   type: agents_md  # Phase 1
@@ -861,9 +838,7 @@ LANGSMITH_API_KEY=lsv2_...
 
 ### 8.2 安全
 
-- Shell 执行通过 `LocalShellBackend`，仅限本地开发环境使用
-- 文件操作限制在 `LocalShellBackend(root_dir=...)` 目录下，`virtual_mode=True` 限制文件路径（**不限制 shell 命令路径访问**）
-- Phase 1 建议开启 `interrupt_on={"execute": True}` 审核 shell 操作
+- 文件操作通过 `FilesystemBackend(root_dir=...)` 限制在指定目录下，`virtual_mode=True` 禁止 `../` 和 `~/` 路径逃逸
 - API 密钥通过环境变量管理，不硬编码
 - 本地运行，不暴露公网端口
 - `recursion_limit` 防止 agent 无限循环
@@ -887,8 +862,6 @@ LANGSMITH_API_KEY=lsv2_...
 | DeepAgents API 变动  | 核心依赖不稳定   | 锁定版本号（`deepagents>=0.4,<0.6`，已验证 0.4.11），关注 changelog |
 | Tavily 免费额度用完  | 搜索功能不可用   | SerpApi fallback                        |
 | Windows 路径兼容问题 | 文件系统工具异常 | 统一使用 pathlib，测试 Windows 路径        |
-| Windows 编码冲突（Issue #2311） | `execute` 命令崩溃 | 设置 `PYTHONIOENCODING=utf-8`，或等待官方修复 |
-| `virtual_mode` 安全限制 | shell 命令可绕过路径限制 | Phase 1 开启 `interrupt_on={"execute": True}` |
 | 模型输出质量差       | 研究结果不可用   | 支持手动切换模型 + 自动 fallback           |
 | Agent 无限循环       | 资源耗尽         | `recursion_limit=50` 安全配置            |
 | Context 窗口溢出     | 长任务失败       | DeepAgents 原生 summarization（默认开启）+ offloading |
@@ -918,3 +891,4 @@ LANGSMITH_API_KEY=lsv2_...
 | Context 压缩   | 手动实现 vs DeepAgents 原生            | DeepAgents 原生       | 内置 `SummarizationMiddleware` 自动 offload + summarization，无需额外配置 |
 | 模型初始化时机 | 传入字符串 vs 传入预配置实例            | 传入字符串            | `create_deep_agent(model="...")` 会立即初始化模型并校验 API key，需确保环境变量提前设置；Phase 1 使用 dummy key 兜底 |
 | 开发顺序       | 先前端 vs 先 API vs 先 Agent 核心       | Agent 核心 → API → 前端 | Phase 0 纯脚本验证 Agent 能跑通，Phase 1 封装 FastAPI API，Phase 2 再加 Streamlit 前端，避免过早引入框架导致混乱 |
+| Sandbox Backend  | LocalShellBackend vs FilesystemBackend | FilesystemBackend | 降低风险（避免 Windows 编码 Bug、Shell 安全）、简化配置 |
