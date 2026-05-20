@@ -1,6 +1,7 @@
 """Lite-DeerFlow CLI 入口
 
 用法: cd backend && python main.py
+      配置文件: ../config.yaml (项目根目录)
 """
 
 import asyncio
@@ -11,12 +12,13 @@ from app.config import load_config
 
 
 async def main():
-    # 加载配置（从 backend/ 目录）
-    config_path = Path(__file__).parent / "config.yaml"
+    # 加载配置（从项目根目录）
+    config_path = Path(__file__).parent.parent / "config.yaml"
     if not config_path.exists():
         print(f"错误: 配置文件不存在: {config_path}")
         print("请从 config.example.yaml 复制并填写配置:")
         print(f"  cp config.example.yaml {config_path}")
+        print(f"  或 copy config.example.yaml {config_path}")
         return
 
     print("加载配置...")

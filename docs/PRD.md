@@ -1,4 +1,4 @@
-# Lite-DeerFlow — Product Requirements Document
+# Lite-Deer-Flow — Product Requirements Document
 
 > 轻量级 AI 研究 Agent，参考 DeerFlow 核心设计理念，基于 LangChain DeepAgents 从零构建。
 

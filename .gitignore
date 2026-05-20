@@ -13,8 +13,10 @@ wheels/
 .env
 *.env
 
+# Runtime config (user-created, may contain API keys)
+config.yaml
+
 # Runtime data
-backend/config.yaml
 backend/data/
 
 # Tool config
