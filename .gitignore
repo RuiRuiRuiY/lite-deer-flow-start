@@ -10,4 +10,12 @@ wheels/
 .venv
 
 # env
+.env
 *.env
+
+# Runtime data
+backend/config.yaml
+backend/data/
+
+# Tool config
+.opencode/

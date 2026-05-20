@@ -1,0 +1,56 @@
+# Lite-DeerFlow 配置
+
+models:
+  primary:
+    name: "qwen-flash"
+    provider: "openai"
+    model: "qwen-flash"
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    api_key_env: "DASHSCOPE_API_KEY"
+
+  fallback:
+    name: "deepseek-v4-flash"
+    provider: "openai"
+    model: "deepseek-v4-flash"
+    base_url: "https://api.deepseek.com/v1"
+    api_key_env: "DEEPSEEK_API_KEY"
+
+search:
+  primary: tavily
+  tavily_api_key_env: "TAVILY_API_KEY"
+  mock: false          # true=强制 mock，false=检测 API key
+  fallback: serp_search
+
+server:
+  host: "127.0.0.1"
+  port: 8000
+
+sandbox:
+  type: filesystem  # FilesystemBackend（纯文件操作）
+  virtual_mode: true  # 限制路径访问
+
+memory:
+  type: agents_md  # Phase 1
+  file: "AGENTS.md"
+  # auto_extract: true  # Phase 3
+
+skills:
+  paths:
+    - "backend/app/skills"
+
+persistence:
+  checkpointer: "sqlite"  # AsyncSqliteSaver
+  db_path: "data/checkpoints.db"
+  store: "memory"  # InMemoryStore (Phase 1), 可换持久化 (Phase 3)
+
+agent:
+  recursion_limit: 50  # 防止无限循环
+  # summarization 默认已开启（DeepAgents 内置），无需额外配置
+  # 如需手动压缩工具（compact_conversation），添加 create_summarization_tool_middleware 到 middleware 列表
+
+observability:
+  langsmith:
+    enabled: false
+    # endpoint: "https://api.smith.langchain.com"
+    # api_key_env: "LANGSMITH_API_KEY"
+    # project: "lite-deer-flow"
