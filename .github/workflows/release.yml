@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "backend/.python-version"
+
+      - name: Install dependencies
+        run: uv sync --frozen --with dev
+
+      - name: ruff check
+        run: uv run ruff check app/ tests/
+
+      - name: ruff format
+        run: uv run ruff format --check app/ tests/
+
+      - name: mypy
+        run: uv run mypy app/
+
+      - name: pytest
+        run: uv run pytest tests/ -v
+        env:
+          DEEPSEEK_API_KEY: "sk-dummy-key-for-ci"
+          TAVILY_API_KEY: "tvly-dummy-key-for-ci"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: true
