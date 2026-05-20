@@ -47,7 +47,7 @@ jobs:
           TAVILY_API_KEY: "tvly-dummy-key-for-ci"
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           fail_on_unmatched_files: true
