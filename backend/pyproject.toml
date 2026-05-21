@@ -7,10 +7,15 @@ requires-python = ">=3.13"
 dependencies = [
     "deepagents>=0.6.2",
     "dotenv>=0.9.9",
+    "fastapi[standard]>=0.136.1",
     "langchain>=1.3.1",
     "langchain-openai>=1.2.1",
     "langgraph>=1.2.0",
+    "mypy>=2.1.0",
+    "pydantic>=2.13.4",
+    "pytest>=9.0.3",
     "pyyaml>=6.0",
+    "ruff>=0.15.13",
     "tavily>=1.1.0",
 ]
 
