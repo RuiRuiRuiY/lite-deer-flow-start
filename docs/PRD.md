@@ -142,16 +142,14 @@ lite-deer-flow/
 ├── AGENTS.md              # 用户偏好文件（记忆）
 │
 ├── backend/
-│   ├── pyproject.toml     # 依赖 + ruff/mypy/pytest 配置
-│   ├── .python-version    # uv 锁定 Python 版本
-│   ├── uv.lock            # uv 锁定依赖版本
-│   ├── .gitignore         # .venv/ .mypy_cache/ .ruff_cache/
+│   ├── cli.py               # CLI 入口（Phase 0 遗留）
+│   ├── pyproject.toml       # 依赖 + ruff/mypy/pytest 配置
+│   ├── .python-version      # uv 锁定 Python 版本
+│   ├── uv.lock              # uv 锁定依赖版本
+│   ├── .gitignore           # .venv/ .mypy_cache/ .ruff_cache/
 │   ├── app/
 │   │   ├── __init__.py
-│   │   ├── main.py                # FastAPI 入口
-│   │   ├── agent/
-│   │   ├── __init__.py
-│   │   ├── main.py                # FastAPI 入口
+│   │   ├── main.py                # uvicorn 入口（Step 2）
 │   │   ├── agent/
 │   │   │   ├── __init__.py
 │   │   │   ├── lead.py            # create_deep_agent() 工厂
@@ -159,14 +157,16 @@ lite-deer-flow/
 │   │   │   ├── subagents.py       # research + report agent 定义
 │   │   │   └── memory.py          # LLM 自动提取（Phase 3）
 │   │   ├── gateway/
-│   │   │   ├── __init__.py
-│   │   │   ├── app.py             # FastAPI 应用组装
+│   │   │   ├── __init__.py        # Step 1
+│   │   │   ├── app.py             # FastAPI 应用工厂 + 健康检查（Step 1）
+│   │   │   ├── schemas.py         # Pydantic 模型（Step 3）
+│   │   │   ├── store.py           # 内存数据存储（Step 4）
 │   │   │   └── routers/
-│   │   │       ├── __init__.py
-│   │   │       ├── threads.py     # 会话管理
-│   │   │       ├── runs.py        # 任务执行 + SSE 流式
-│   │   │       ├── models.py      # 模型管理
-│   │   │       └── memory.py      # 记忆管理
+│   │   │       ├── __init__.py    # Step 1
+│   │   │       ├── threads.py     # 会话 CRUD（Step 5）
+│   │   │       ├── runs.py        # 任务执行（Step 6）
+│   │   │       ├── models.py      # 模型管理（Phase 3）
+│   │   │       └── memory.py      # 记忆管理（Phase 4）
 │   │   ├── tools/
 │   │   │   ├── __init__.py
 │   │   │   └── web_search.py      # Tavily + SerpApi
@@ -716,13 +716,13 @@ LANGSMITH_API_KEY=lsv2_...
 
 **目标**：在已有的项目骨架中实现 Agent 核心模块，验证 DeepAgents 在 Windows 环境能跑通核心流程
 
-- [ ] 在 `backend/app/agent/` 下实现 Lead Agent 工厂（`lead.py`）
-- [ ] 在 `backend/app/agent/` 下定义 Sub-Agent（`subagents.py`）
-- [ ] 在 `backend/app/tools/` 下实现 `web_search` 工具（`web_search.py`）
-- [ ] 使用 LangChain `ChatOpenAI` 初始化模型（参数直接写在代码中，API key 从环境变量读取）
-- [ ] 创建入口脚本运行 Agent 流程（可在 `backend/app/main.py` 或独立脚本）
-- [ ] 验证 Lead → research-agent → report-agent 完整委派流程
-- [ ] 输入一个研究问题，终端输出完整报告
+- [x] 在 `backend/app/agent/` 下实现 Lead Agent 工厂（`lead.py`）
+- [x] 在 `backend/app/agent/` 下定义 Sub-Agent（`subagents.py`）
+- [x] 在 `backend/app/tools/` 下实现 `web_search` 工具（`web_search.py`）
+- [x] 使用 LangChain `ChatOpenAI` 初始化模型（参数直接写在代码中，API key 从环境变量读取）
+- [x] 创建入口脚本运行 Agent 流程（可在 `backend/app/main.py` 或独立脚本）
+- [x] 验证 Lead → research-agent → report-agent 完整委派流程
+- [x] 输入一个研究问题，终端输出完整报告
 
 **验收标准**：
 
@@ -744,28 +744,52 @@ LANGSMITH_API_KEY=lsv2_...
 
 **目标**：把 Phase 0 的脚本封装成完整项目，基于 PRD 设计实现核心业务逻辑，通过 API 调用
 
-- [ ] 搭建 monorepo 项目结构（backend/ frontend/ data/）
-- [ ] `uv` + `pyproject.toml` 依赖管理
-- [ ] `config.yaml` 配置加载（模型、搜索、Sandbox、持久化）
-- [ ] FastAPI 主应用 + 基础路由
-- [ ] `POST /api/threads` 创建会话
-- [ ] `POST /api/threads/{id}/runs` 执行任务（同步返回）
-- [ ] DeepAgents Lead Agent 集成（含 `checkpointer` + `recursion_limit`）
-- [ ] 两个 Sub-Agent 完整定义（research-agent + report-agent）
-- [ ] `task()` 委派流程端到端验证
-- [ ] 单模型配置与运行（`with_fallbacks()` 预留接口，Phase 3 实现）
-- [ ] Tavily `web_search` 工具 + SerpApi fallback 预留
-- [ ] 文件系统 + Shell 工具（`LocalShellBackend`，`virtual_mode=True`）
-- [ ] AGENTS.md 手动记忆（`memory=["/AGENTS.md"]`）
-- [ ] 测试基础设施（pytest + 核心逻辑单元测试：agent 工厂、配置加载）
+**Gateway 构建分 7 步，每步独立可验证**：
+
+```
+Step 1 ──→ Step 2 ──→ Step 3 ──→ Step 4 ──→ Step 5 ──→ Step 6 ──→ Step 7
+脚手架     入口脚本     数据模型     数据存储     Thread CRUD   Run 执行    Checkpointer
+```
+
+| Step | 职责 | 新增/修改文件 | 验证方式 |
+|------|------|--------------|----------|
+| 1 | 建 gateway 包 + 应用工厂 + 健康检查 | `gateway/__init__.py`, `gateway/app.py`, `gateway/routers/__init__.py` | `create_app()` 可导入 |
+| 2 | uvicorn 入口脚本，读取 `server.host/port` 启动 | `app/main.py` | 服务启动 |
+| 3 | 纯 Pydantic 模型（Thread, Message, 请求/响应 schema） | `gateway/schemas.py` | 单元测试 |
+| 4 | 纯数据访问层（ThreadStore，内存 dict，预留持久化） | `gateway/store.py` | 单元测试 |
+| 5 | 会话 CRUD 路由（POST/GET/GET/DELETE） | `routers/threads.py` + 修改 `app.py` | curl 测试 |
+| 6 | 异步任务执行路由，复用 `create_lead_agent` | `routers/runs.py` + 修改 `app.py` | curl 端到端 |
+| 7 | AsyncSqliteSaver 管理 + lead.py checkpointer 参数 | 修改 `lead.py`, `app.py`, `runs.py` | 重启保留历史 |
+
+**Pre-Phase 1 已完成**（来自 Phase 0，PRD 原清单中标记确认）：
+
+- [x] 搭建 monorepo 项目结构（backend/ frontend/ data/）
+- [x] `uv` + `pyproject.toml` 依赖管理
+- [x] `config.yaml` 配置加载（模型、搜索、Sandbox、持久化）
+- [x] 两个 Sub-Agent 完整定义（research-agent + report-agent）
+- [x] `task()` 委派流程端到端验证（CLI 已验证）
+- [x] 单模型配置与运行（`with_fallbacks()` 预留接口，Phase 3 实现）
+- [x] Tavily `web_search` 工具 + SerpApi fallback 预留
+- [x] 文件系统工具（FilesystemBackend，替代 LocalShellBackend）
+
+**Phase 1 Gateway 构建任务**：
+
+- [ ] Step 1: Gateway 脚手架 — 建包、应用工厂、健康检查
+- [ ] Step 2: 入口脚本 — uvicorn 启动
+- [ ] Step 3: 数据模型 — Pydantic schema 定义
+- [ ] Step 4: 数据存储 — ThreadStore 内存实现
+- [ ] Step 5: 会话 CRUD 路由 — threads API
+- [ ] Step 6: 任务执行路由 — runs API（异步）
+- [ ] Step 7: Checkpointer 持久化 — SQLite 保活
+- [ ] 测试基础设施（pytest + 核心逻辑单元测试：agent 工厂、配置加载、store CRUD、schema 序列化）
 
 **验收标准**：
 
 - `curl -X POST /api/threads/{id}/runs -d '{"content": "..."}'` → 返回报告内容
 - 输入问题 → Lead Agent 委派 research-agent 搜索 → 委派 report-agent 撰写 → 返回完整报告
-- 支持多轮对话（同一 thread 内，通过 `thread_id` 持久化）
+- 支持多轮对话（同一 thread 内，通过 `thread_id` 持久化，重启不丢失）
 - 模型配置通过 `config.yaml` 管理
-- 核心逻辑（agent 工厂、配置加载）有对应单元测试
+- 核心逻辑（agent 工厂、配置加载、store CRUD、schema）有对应单元测试
 
 ### Phase 2: 流式输出 + 前端（1 周）
 
